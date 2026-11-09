@@ -63,7 +63,7 @@ export const useLab = create<Lab>((set, get) => ({
   raw: null, ops: [], data: null, cfg: null, step: 0, evalResult: null,
   load: (d) => {
     get().evalResult?.predictor.dispose?.();
-    set({ raw: d, ops: [], data: d, cfg: defaultCfg(d), step: 1, evalResult: null });
+    set({ raw: d, ops: [], data: d, cfg: defaultCfg(d), evalResult: null });
   },
   addOp: (o) => {
     const ops = [...get().ops, o];

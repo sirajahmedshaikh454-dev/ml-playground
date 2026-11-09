@@ -1,5 +1,5 @@
 "use client";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { useLab } from "@/lib/store";
 import { Button, cx } from "../ui";
@@ -25,7 +25,7 @@ export function Lab() {
   const { C } = STEPS[step];
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[220px_1fr]">
+    <div className="mx-auto grid grid-cols-1 max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[220px_1fr]">
       <nav aria-label="Pipeline steps" className="lg:sticky lg:top-20 lg:self-start">
         <ol className="scroll-thin flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">
           {STEPS.map((s, i) => {
@@ -51,7 +51,7 @@ export function Lab() {
       </nav>
 
       <div className="min-w-0">
-        <div className="mb-5 flex items-center gap-3">
+        <div className="mb-5 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">{STEPS[step].title}</h1>
           <span className="text-sm text-dim">{STEPS[step].sub}</span>
           <div className="ml-auto flex gap-2">
@@ -59,11 +59,10 @@ export function Lab() {
             <Button size="sm" variant="primary" onClick={() => setStep(step + 1)} disabled={step === STEPS.length - 1 || !enabled(step + 1)}>Next<ChevronRight className="size-4" aria-hidden /></Button>
           </div>
         </div>
-        <AnimatePresence mode="wait">
-          <motion.div key={step} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.22, ease: "easeOut" }}>
-            <C />
-          </motion.div>
-        </AnimatePresence>
+        {/* enter-only transition: switching never waits on an exit animation */}
+        <motion.div key={step} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
+          <C />
+        </motion.div>
       </div>
     </div>
   );

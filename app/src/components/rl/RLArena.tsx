@@ -78,7 +78,7 @@ function GridWorld() {
   const success = recent.length ? recent.filter((e) => e.success).length / recent.length : NaN;
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px]">
       <div className="space-y-5">
         <Card title="Gridworld" icon={<Gamepad2 className="size-4" />}
           actions={<>
@@ -204,7 +204,7 @@ function CartPole() {
   const failed = !!frames && fi === frames.length - 1 && frames.length < 501;
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px]">
       <div className="space-y-5">
         <Card title="CartPole" icon={<Gamepad2 className="size-4" />} actions={frames && <Badge tone={failed ? "red" : "green"}>{fi} / 500 steps{failed ? " · fell" : ""}</Badge>}>
           <CartCanvas state={state} failed={failed} />

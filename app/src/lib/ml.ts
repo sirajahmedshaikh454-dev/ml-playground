@@ -126,11 +126,14 @@ async function* mlp(c: Ctx): AsyncGenerator<Progress> {
   for (let l = 0; l < layers; l++)
     model.add(tf.layers.dense(l === 0 ? { units: hidden, activation: "relu", inputShape: [d] } : { units: hidden, activation: "relu" }));
   model.add(tf.layers.dense({ units: cls ? c.k : 1, activation: cls ? "softmax" : "linear" }));
-  model.compile({ optimizer: tf.train.adam(lr), loss: cls ? "categoricalCrossentropy" : "meanSquaredError" });
+  model.compile({ optimizer: tf.train.adam(lr), loss: cls ? "categoricalCrossentropy" : "meanSquaredError", metrics: cls ? ["accuracy"] : [] });
   const xs = tf.tensor2d(c.Xtr);
-  const yt = cls
-    ? tf.oneHot(tf.tensor1d(c.ytr, "int32"), c.k).toFloat()
-    : tf.tensor2d(c.ytr.map((v) => [(v - ym) / ys]));
+  const target = (y: number[]) => cls
+    ? tf.oneHot(tf.tensor1d(y, "int32"), c.k).toFloat()
+    : tf.tensor2d(y.map((v) => [(v - ym) / ys]));
+  const yt = target(c.ytr);
+  const xv = tf.tensor2d(c.Xva), yv = target(c.yva);
+  const vVar = std(c.yva) ** 2 || 1, tVar = (std(c.ytr) || 1) ** 2;
   const raw = (X: number[][]) =>
     X.length ? (tf.tidy(() => (model.predict(tf.tensor2d(X)) as import("@tensorflow/tfjs").Tensor).arraySync()) as number[][]) : [];
   const pr: Predictor = cls
@@ -138,12 +141,16 @@ async function* mlp(c: Ctx): AsyncGenerator<Progress> {
     : { predict: (X) => raw(X).map((r) => r[0] * ys + ym), dispose: () => model.dispose() };
   try {
     for (let e = 1; e <= epochs; e++) {
-      await model.fit(xs, yt, { epochs: 1, batchSize: batch, shuffle: true, verbose: 0 });
-      yield { step: e, total: epochs, metrics: score(c, pr), predictor: pr };
+      // train + validation metrics are computed in-graph by fit(): no extra GPU readbacks per epoch
+      const h = (await model.fit(xs, yt, { epochs: 1, batchSize: batch, shuffle: true, verbose: 0, validationData: [xv, yv] })).history;
+      const g = (k: string) => Number((h[k] ?? h[k.replace("acc", "accuracy")] ?? [NaN])[0]);
+      const metrics: Record<string, number> = cls
+        ? { loss: g("loss"), val_loss: g("val_loss"), acc: g("acc"), val_acc: g("val_acc") }
+        : { loss: Math.sqrt(g("loss")) * ys, val_loss: Math.sqrt(g("val_loss")) * ys, r2: 1 - (g("loss") * ys * ys) / tVar, val_r2: 1 - (g("val_loss") * ys * ys) / vVar };
+      yield { step: e, total: epochs, metrics, predictor: pr };
     }
   } finally {
-    xs.dispose();
-    yt.dispose();
+    tf.dispose([xs, yt, xv, yv]);
   }
 }
 

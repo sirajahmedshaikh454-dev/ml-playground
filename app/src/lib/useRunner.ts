@@ -49,9 +49,11 @@ export function useRunner<T>() {
 
   const loop = useCallback(async () => {
     while (statusRef.current === "running") {
-      const finished = await pull(delayRef.current > 0 ? 0 : 14);
+      // hidden tabs get no rAF and ~1s timers: keep training with bigger batches instead of stalling
+      const hidden = document.hidden;
+      const finished = await pull(hidden ? 250 : delayRef.current > 0 ? 0 : 14);
       if (finished) return;
-      await new Promise((r) => (delayRef.current > 0 ? setTimeout(r, delayRef.current) : requestAnimationFrame(() => r(null))));
+      await new Promise((r) => (hidden ? setTimeout(r, 0) : delayRef.current > 0 ? setTimeout(r, delayRef.current) : requestAnimationFrame(() => r(null))));
     }
   }, [pull]);
 

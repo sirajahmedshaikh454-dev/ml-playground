@@ -93,7 +93,7 @@ export function Compare() {
               <TriangleAlert className="size-4 shrink-0" aria-hidden />These runs used different seeds or test sizes, so their test sets differ. Compare with care.
             </p>
           )}
-          <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_1fr]">
             <Card title={`Leaderboard · ${prim?.label}`}>
               <Bars data={ranked.slice(0, 15).map((r) => ({ x: `#${r.id} ${r.engineLabel.split(" ")[0]}`, count: +(r.test[prim!.key] ?? 0).toFixed(4) }))} xKey="x" yKey="count" color="#f59e0b" height={220} label={`${prim?.label} per run`} />
             </Card>

@@ -32,7 +32,7 @@ export function FeatureStep() {
   const balance = p?.classes.map((c, i) => ({ x: c, count: p.ytr.filter((y) => y === i).length })) ?? [];
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1.1fr]">
       <Card title="What should the model learn?" icon={<SlidersHorizontal className="size-4" />}>
         <div className="space-y-4">
           <div role="radiogroup" aria-label="Task" className="grid grid-cols-3 gap-2">
