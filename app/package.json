@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "smoke": "tsx scripts/smoke.mts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
@@ -20,7 +21,6 @@
     "lucide-react": "^1.70.0",
     "ml-cart": "^2.1.1",
     "ml-pca": "^4.1.1",
-    "ml-random-forest": "^2.1.0",
     "next": "16.4.5",
     "papaparse": "^5.7.0",
     "react": "19.3.0",
@@ -42,6 +42,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

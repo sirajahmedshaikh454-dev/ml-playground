@@ -24,6 +24,8 @@ export interface Progress {
   // clustering payloads
   labels?: number[];
   centroids?: number[][];
+  proj?: number[][];
+  explained?: number[];
 }
 
 export function mulberry32(seed: number) {
