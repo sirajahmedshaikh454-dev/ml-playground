@@ -1,6 +1,12 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+// rAF, but never stall: occluded/minimised windows can report "visible" yet fire no frames
+const nextFrame = () => new Promise<void>((r) => {
+  const t = setTimeout(() => { cancelAnimationFrame(f); r(); }, 50);
+  const f = requestAnimationFrame(() => { clearTimeout(t); r(); });
+});
+
 export type RunStatus = "idle" | "running" | "paused" | "done" | "error";
 
 // Drives any (async) generator from the UI: run / pause / step / stop at an adjustable speed.
@@ -53,7 +59,7 @@ export function useRunner<T>() {
       const hidden = document.hidden;
       const finished = await pull(hidden ? 250 : delayRef.current > 0 ? 0 : 14);
       if (finished) return;
-      await new Promise((r) => (hidden ? setTimeout(r, 0) : delayRef.current > 0 ? setTimeout(r, delayRef.current) : requestAnimationFrame(() => r(null))));
+      await (hidden ? new Promise((r) => setTimeout(r, 0)) : delayRef.current > 0 ? new Promise((r) => setTimeout(r, delayRef.current)) : nextFrame());
     }
   }, [pull]);
 

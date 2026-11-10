@@ -23,7 +23,13 @@ export function Compare() {
     try { setRuns(await getDb().runs.orderBy("createdAt").reverse().toArray()); }
     catch { setErr("Browser storage is unavailable (private window?). Runs from this session cannot be listed."); setRuns([]); }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let alive = true;
+    getDb().runs.orderBy("createdAt").reverse().toArray()
+      .then((r) => { if (alive) setRuns(r); })
+      .catch(() => { if (alive) { setErr("Browser storage is unavailable (private window?). Runs from this session cannot be listed."); setRuns([]); } });
+    return () => { alive = false; };
+  }, []);
 
   const datasets = useMemo(() => [...new Set(runs?.map((r) => `${r.dataset}::${r.task}`))], [runs]);
   const key = dataset || datasets[0] || "";
@@ -54,7 +60,7 @@ export function Compare() {
       if (j.schemaVersion !== 1 || !Array.isArray(j.runs)) throw new Error("Not an ML Playground export");
       // validate shape before writing to the DB (trust boundary)
       const ok = j.runs.filter((r) => typeof r.dataset === "string" && typeof r.engine === "string" && r.test && typeof r.test === "object" && Array.isArray(r.history));
-      await getDb().runs.bulkAdd(ok.map(({ id: _id, ...r }) => r));
+      await getDb().runs.bulkAdd(ok.map((r) => { const copy = { ...r }; delete copy.id; return copy; })); // fresh ids
       await load();
     } catch (e) { setErr((e as Error).message); }
   };

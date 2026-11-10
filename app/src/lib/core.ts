@@ -15,7 +15,11 @@ export interface Predictor {
   predict: (X: number[][]) => number[];
   proba?: (X: number[][]) => number[][];
   dispose?: () => void;
+  // remote (Python backend) models can only predict over the network
+  predictAsync?: (X: number[][]) => Promise<{ pred: number[]; proba?: number[][] }>;
 }
+export const predictAll = async (pr: Predictor, X: number[][]) =>
+  pr.predictAsync ? pr.predictAsync(X) : { pred: pr.predict(X), proba: pr.proba?.(X) };
 export interface Progress {
   step: number;
   total: number;

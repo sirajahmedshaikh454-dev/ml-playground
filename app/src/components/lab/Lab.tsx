@@ -1,6 +1,7 @@
 "use client";
 import { motion } from "framer-motion";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState } from "react";
 import { useLab } from "@/lib/store";
 import { Button, cx } from "../ui";
 import { CleanStep } from "./CleanStep";
@@ -19,10 +20,15 @@ const STEPS = [
   { title: "Evaluate", sub: "Honest test scores", C: EvalStep },
 ];
 
+const TRAIN = 4;
+
 export function Lab() {
   const { raw, step, setStep, evalResult } = useLab();
   const enabled = (i: number) => i === 0 || (!!raw && (i < 5 || !!evalResult));
   const { C } = STEPS[step];
+  // Train holds the live run (runner, curves, model choice): keep it mounted once opened
+  const [trainSeen, setTrainSeen] = useState(false);
+  if (step === TRAIN && !trainSeen) setTrainSeen(true);
 
   return (
     <div className="mx-auto grid grid-cols-1 max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[220px_1fr]">
@@ -61,8 +67,14 @@ export function Lab() {
         </div>
         {/* enter-only transition: switching never waits on an exit animation */}
         <motion.div key={step} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
-          <C />
+          {step !== TRAIN && <C />}
         </motion.div>
+        {trainSeen && (
+          <div hidden={step !== TRAIN}>
+            {/* new dataset = fresh Train state */}
+            <TrainStep key={raw ? `${raw.name}:${raw.rows.length}` : "none"} />
+          </div>
+        )}
       </div>
     </div>
   );

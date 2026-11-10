@@ -130,7 +130,9 @@ export function Scatter2D({ points, bg, line, hline, marks, xLabel, yLabel, heig
       bg.colors.forEach((col, i) => {
         const gx = i % bg.res, gy = Math.floor(i / bg.res);
         g.fillStyle = col;
-        g.fillRect(P.l + gx * cw, height - P.b - (gy + 1) * ch, cw + 0.6, ch + 0.6);
+        // snap to whole pixels so neighbouring cells meet without seams
+        const x = Math.floor(P.l + gx * cw), y = Math.floor(height - P.b - (gy + 1) * ch);
+        g.fillRect(x, y, Math.ceil(P.l + (gx + 1) * cw) - x, Math.ceil(height - P.b - gy * ch) - y);
       });
     }
     // axes + ticks

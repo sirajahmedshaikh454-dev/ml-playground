@@ -49,7 +49,9 @@ function fromObjects(name: string, objs: Record<string, unknown>[], note?: strin
   const cols: string[] = [];
   const seen = new Set<string>();
   for (const o of objs.slice(0, 500))
-    for (const k of Object.keys(o)) if (!seen.has(k)) (seen.add(k), cols.push(k));
+    for (const k of Object.keys(o)) {
+      if (!seen.has(k)) { seen.add(k); cols.push(k); }
+    }
   return buildDataset(name, cols, objs, note);
 }
 

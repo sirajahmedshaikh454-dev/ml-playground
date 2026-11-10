@@ -21,6 +21,7 @@ export interface Engine {
   family: "supervised" | "unsupervised";
   tasks: Task[];
   params: ParamDef[];
+  remote?: boolean;
   run: (c: Ctx) => AsyncGenerator<Progress, void, unknown>;
 }
 

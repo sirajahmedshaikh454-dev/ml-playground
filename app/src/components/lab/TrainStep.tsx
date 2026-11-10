@@ -2,10 +2,11 @@
 import dynamic from "next/dynamic";
 import { Activity, ArrowRight, Cpu, Pause, Play, Square, StepForward, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type Progress, mean, mulberry32, shuffle } from "@/lib/core";
+import { type Progress, mean, mulberry32, predictAll, shuffle } from "@/lib/core";
 import type { Prepared } from "@/lib/features";
 import { classReport, regReport } from "@/lib/metrics";
 import { type Ctx, ENGINES, type Engine, projection } from "@/lib/ml";
+import { BACKEND, REMOTE_ENGINES, backendModels } from "@/lib/remote";
 import { getDb, type RunRecord, useLab } from "@/lib/store";
 import { useRunner } from "@/lib/useRunner";
 import { Bars, type Bg, Curves, type Pt, Scatter2D, colorOf } from "../charts";
@@ -24,7 +25,9 @@ export function TrainStep() {
   const { p, error } = usePrepared();
   const runner = useRunner<Progress>();
   const task = cfg?.task ?? "classification";
-  const engines = ENGINES.filter((e) => e.tasks.includes(task));
+  const [pyModels, setPyModels] = useState<string[] | null>(null);
+  useEffect(() => { void backendModels().then(setPyModels); }, []);
+  const engines = [...ENGINES, ...REMOTE_ENGINES.filter((e) => pyModels?.includes(e.id.slice(3)))].filter((e) => e.tasks.includes(task));
   const [engineId, setEngineId] = useState(engines[0]?.id);
   const engine = engines.find((e) => e.id === engineId) ?? engines[0];
   const [paramState, setParamState] = useState<Record<string, Record<string, number>>>({});
@@ -32,7 +35,7 @@ export function TrainStep() {
   const [axisMode, setAxisMode] = useState<"features" | "pca">("pca");
   const [speed, setSpeed] = useState("0");
   const [saved, setSaved] = useState<number | null>(null);
-  const live = useRef<Live | null>(null);
+  const [L, setL] = useState<Live | null>(null); // the run being shown (state, not a ref: render reads it)
   const busy = runner.status === "running" || runner.status === "paused";
 
   const param = (k: string, def: number) => paramState[engine.id]?.[k] ?? def;
@@ -55,21 +58,21 @@ export function TrainStep() {
       const X = p.Xall.length > 4000 ? shuffle(p.Xall, mulberry32(cfg.seed)).slice(0, 4000) : p.Xall;
       ctx = { task, Xtr: X, ytr: [], Xva: [], yva: [], k: 0, params, seed: cfg.seed };
     }
-    live.current = { ctx, p, engine, t0: performance.now(), X: ctx.Xtr };
+    // eslint-disable-next-line react-hooks/purity -- click handler, not render
+    const run: Live = { ctx, p, engine, t0: performance.now(), X: ctx.Xtr };
+    setL(run);
     setSaved(null);
     if (supervised) setEval(null);
     runner.setDelay(Number(speed));
-    runner.start(engine.run(ctx), (all) => void finish(all));
+    runner.start(engine.run(ctx), (all) => void finish(all, run));
   };
 
-  const finish = async (all: Progress[]) => {
-    const L = live.current;
+  const finish = async (all: Progress[], L: Live) => {
     const last = all[all.length - 1];
-    if (!L || !last || !cfg || !data) return;
+    if (!last || !cfg || !data) return;
     let test: Record<string, number> = { ...last.metrics };
     if (L.ctx.task !== "clustering" && last.predictor) {
-      const pred = last.predictor.predict(L.p.Xte);
-      const proba = last.predictor.proba?.(L.p.Xte);
+      const { pred, proba } = await predictAll(last.predictor, L.p.Xte);
       if (L.ctx.task === "classification") {
         const r = classReport(L.p.yte, pred, L.p.classes.length);
         test = { accuracy: r.accuracy, macro_f1: r.macroF1, baseline: r.baseline };
@@ -80,12 +83,14 @@ export function TrainStep() {
       setEval({ task: L.ctx.task, engine: L.engine.label, y: L.p.yte, pred, proba, classes: L.p.classes, predictor: last.predictor });
     }
     const every = Math.max(1, Math.ceil(all.length / 200));
+    /* eslint-disable react-hooks/purity -- runs after training completes, never during render */
     const rec: RunRecord = {
       createdAt: Date.now(), dataset: data.name, rows: data.rows.length, engine: L.engine.id, engineLabel: L.engine.label, task: L.ctx.task,
       params: L.ctx.params, seed: cfg.seed, testSize: cfg.testSize, features: L.p.names.length, test,
       history: all.filter((_, i) => i % every === 0 || i === all.length - 1).map((e) => ({ step: e.step, ...e.metrics })),
       ms: Math.round(performance.now() - L.t0),
     };
+    /* eslint-enable react-hooks/purity */
     try { setSaved(await getDb().runs.add(rec)); } catch { /* storage blocked (private mode): run still shown */ }
   };
 
@@ -94,19 +99,22 @@ export function TrainStep() {
   const history = useMemo(() => events.map((e) => ({ step: e.step, ...e.metrics })), [events]);
 
   // ----- throttled decision boundary / regression fit -----
-  const [bg, setBg] = useState<Bg | null>(null);
-  const [fitLine, setFitLine] = useState<[number, number][] | undefined>();
+  const vizKey = `${fx}:${fy}:${engine.id}`;
+  const [viz, setViz] = useState<{ key: string; bg?: Bg; line?: [number, number][] }>({ key: "" });
+  const bg = viz.key === vizKey ? viz.bg ?? null : null;
+  const fitLine = viz.key === vizKey ? viz.line : undefined;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(last);
-  latest.current = last;
-  const L = live.current;
+  useEffect(() => { latest.current = last; });
   const base = useMemo(() => (L?.ctx.task !== "clustering" && L ? L.ctx.Xtr[0].map((_, j) => mean(L.ctx.Xtr.map((r) => r[j]))) : []), [L]);
+  const [redraw, setRedraw] = useState(0);
   useEffect(() => {
     if (!L || L.ctx.task === "clustering" || !last?.predictor || timer.current) return;
-    timer.current = setTimeout(() => {
-      timer.current = null;
-      const pr = latest.current?.predictor;
-      if (!pr) return;
+    const key = vizKey;
+    timer.current = setTimeout(async () => {
+      const seen = latest.current;
+      const pr = seen?.predictor;
+      if (!pr) { timer.current = null; return; }
       const xs = L.p.Xall.map((r) => r[fx]), ys = L.p.Xall.map((r) => r[fy]);
       const pad = (a: number[]) => { const lo = Math.min(...a), hi = Math.max(...a), d = (hi - lo) * 0.08 || 1; return [lo - d, hi + d]; };
       const [x0, x1] = pad(xs), [y0, y1] = pad(ys);
@@ -118,17 +126,20 @@ export function TrainStep() {
           if (fy !== fx) r[fy] = y0 + ((gy + 0.5) / RES) * (y1 - y0);
           rows.push(r);
         }
-        const pred = pr.predict(rows);
-        setBg({ res: RES, x0, x1, y0, y1, colors: pred.map((c) => `${colorOf(c)}3a`) });
+        const { pred } = await predictAll(pr, rows).catch(() => ({ pred: [] as number[] }));
+        timer.current = null;
+        if (pred.length) setViz({ key, bg: { res: RES, x0, x1, y0, y1, colors: pred.map((c) => `${colorOf(c)}3a`) } });
       } else {
         const line: [number, number][] = [];
         const rows = Array.from({ length: 60 }, (_, i) => { const r = base.slice(); r[fx] = x0 + (i / 59) * (x1 - x0); return r; });
-        pr.predict(rows).forEach((v, i) => line.push([rows[i][fx], v]));
-        setFitLine(line);
+        const { pred } = await predictAll(pr, rows).catch(() => ({ pred: [] as number[] }));
+        timer.current = null;
+        pred.forEach((v, i) => line.push([rows[i][fx], v]));
+        if (pred.length) setViz({ key, line });
       }
+      if (latest.current !== seen) setRedraw((n) => n + 1); // newer step arrived mid-draw: draw it too
     }, 160);
-  }, [last, L, fx, fy, base]);
-  useEffect(() => { setBg(null); setFitLine(undefined); }, [fx, fy, engineId]);
+  }, [last, L, fx, fy, base, redraw, vizKey]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   // ----- clustering projection (computed once per run) -----
@@ -163,11 +174,16 @@ export function TrainStep() {
             <button key={e.id} disabled={busy} onClick={() => setEngineId(e.id)} aria-pressed={e.id === engine.id}
               className={cx("cursor-pointer rounded-xl border p-3 text-left transition-[border,background] disabled:cursor-not-allowed disabled:opacity-50",
                 e.id === engine.id ? "border-accent bg-accent/10" : "border-border bg-surface/60 hover:border-primary/50")}>
-              <div className="text-sm font-medium">{e.label}</div>
+              <div className="flex items-center gap-1.5 text-sm font-medium">{e.label.replace(" · Python", "")}{e.remote && <Badge tone="green">Python</Badge>}</div>
               <div className="mt-0.5 text-[11px] leading-snug text-dim">{e.blurb}</div>
             </button>
           ))}
         </div>
+        {pyModels && !pyModels.length && supervised && (
+          <p className="mt-3 text-xs text-dim">
+            Want SVM, Gradient Boosting or bigger forests? Start the optional Python backend (<code className="num text-sub">backend/</code>, see README) and it will appear here automatically at <span className="num">{BACKEND}</span>.
+          </p>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[320px_1fr]">

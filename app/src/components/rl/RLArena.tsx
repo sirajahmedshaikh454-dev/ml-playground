@@ -64,7 +64,6 @@ function GridWorld() {
   useEffect(() => {
     if (!path) return;
     let i = 0;
-    setAgent(path[0]);
     const id = setInterval(() => { i++; if (i >= path.length) clearInterval(id); else setAgent(path[i]); }, 260);
     return () => clearInterval(id);
   }, [path]);
@@ -105,7 +104,7 @@ function GridWorld() {
             })}
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Button variant="primary" disabled={!Q || busy} onClick={() => Q && setPath(greedyPath(grid, Q))}><Bot className="size-4" aria-hidden />Replay learned policy</Button>
+            <Button variant="primary" disabled={!Q || busy} onClick={() => { if (!Q) return; const p = greedyPath(grid, Q); setAgent(p[0]); setPath(p); }}><Bot className="size-4" aria-hidden />Replay learned policy</Button>
             <p className="text-xs text-dim">Arrows = best action per cell. Blue = high expected return, red = expected penalty.</p>
           </div>
         </Card>
@@ -176,14 +175,14 @@ function CartPole() {
   const [episodes, setEpisodes] = useState(CART_DEFAULTS.episodes);
   const [gamma, setGamma] = useState(CART_DEFAULTS.gamma);
   const [speed, setSpeed] = useState("0");
-  const [frames, setFrames] = useState<CartState[] | null>(null);
+  const [frames, setFramesRaw] = useState<CartState[] | null>(null);
   const [fi, setFi] = useState(0);
+  const setFrames = (f: CartState[] | null) => { setFi(0); setFramesRaw(f); }; // restart playback from frame 0
   const last = runner.events[runner.events.length - 1];
   const busy = runner.status === "running" || runner.status === "paused";
 
   useEffect(() => {
     if (!frames) return;
-    setFi(0);
     let i = 0;
     const id = setInterval(() => { i++; if (i >= frames.length) clearInterval(id); else setFi(i); }, 20);
     return () => clearInterval(id);
