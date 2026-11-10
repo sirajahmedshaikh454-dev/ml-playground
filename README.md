@@ -11,7 +11,7 @@ Your data never leaves your machine. Everything runs client-side unless you star
 | **Data Lab** `/lab` | Six-step pipeline: **Data** (CSV, TSV, JSON, Excel, plain text, image folders, 3 samples) → **Clean** (missing values, outliers, duplicates, type fixes, one-click auto-clean, undoable recipe) → **Explore** (distributions, correlation heatmap, 3D PCA cloud) → **Features** (target, one-hot/label encoding, scaling, text bag-of-words, seeded and stratified split) → **Train** → **Evaluate** |
 | **Models (browser)** | Linear & Logistic Regression, Neural Network (TensorFlow.js), Decision Tree (grown by depth), Random Forest (grown by tree), kNN, Gaussian Naive Bayes · k-Means, DBSCAN, PCA, Anomaly Detection |
 | **Models (Python, optional)** | SVM (RBF), Gradient Boosting, large Random Forest, scikit-learn MLP. They appear automatically when the backend is running. |
-| **Live training** | Play / pause / step / stop at adjustable speed; train vs validation curves; decision boundary or regression fit; clusters in 2D and 3D; overfitting warning |
+| **Live training** | Runs in a Web Worker so the page stays responsive. Play / pause / step / stop at adjustable speed; train vs validation curves; decision boundary or regression fit; clusters in 2D and 3D; overfitting warning |
 | **Evaluation** | Test-set accuracy, macro F1, majority baseline, confusion matrix, ROC/AUC (one-vs-rest), R², RMSE, MAE, predicted-vs-actual, residuals |
 | **RL Arena** `/rl` | Paintable gridworld (walls, traps, goal, start) with Q-learning vs SARSA, tunable reward, penalty, step cost and slippery floor, live Q-value heatmap and animated policy replay. CartPole with learning curve, learned vs random policy. |
 | **Experiments** `/compare` | Every run auto-saved (IndexedDB): leaderboard, learning-curve overlay, split-mismatch warning, JSON export/import |
@@ -71,6 +71,7 @@ app/src/lib/
   clean.ts      serializable CleanOp list, profile, histograms, correlation
   features.ts   leak-free prepare(): split -> fit on train -> encode/scale
   ml.ts         Engine = async generator of Progress events (11 models)
+  train.worker.ts / workerEngine.ts  browser models train in a Web Worker; the page pulls each step
   remote.ts     same Engine interface over SSE to the Python backend
   rl.ts         gridworld + CartPole environments and agents
   metrics.ts    classification / regression reports, ROC
@@ -85,6 +86,5 @@ Every model, in the browser or in Python, streams the same `Progress` events, so
 
 - In-browser data is capped at 100k rows and 60 MB per file. Images are downsampled to 16×16 grayscale.
 - DBSCAN, anomaly detection and silhouette are O(n²): clustering samples up to 4,000 rows, and kNN uses up to 3,000 training rows.
-- Training runs on the main thread in time slices, not yet in a Web Worker.
 - CartPole uses tabular Q-learning on a discretized state. There is no deep Q-network yet.
 - No accounts and no cloud sync, by design: runs live in this browser, so export them to move them.

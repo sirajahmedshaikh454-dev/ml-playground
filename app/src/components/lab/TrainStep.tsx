@@ -5,8 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type Progress, mean, mulberry32, predictAll, shuffle } from "@/lib/core";
 import type { Prepared } from "@/lib/features";
 import { classReport, regReport } from "@/lib/metrics";
-import { type Ctx, ENGINES, type Engine, projection } from "@/lib/ml";
+import { type Ctx, type Engine, projection } from "@/lib/ml";
 import { BACKEND, REMOTE_ENGINES, backendModels } from "@/lib/remote";
+import { WORKER_ENGINES } from "@/lib/workerEngine";
 import { getDb, type RunRecord, useLab } from "@/lib/store";
 import { useRunner } from "@/lib/useRunner";
 import { Bars, type Bg, Curves, type Pt, Scatter2D, colorOf } from "../charts";
@@ -27,7 +28,7 @@ export function TrainStep() {
   const task = cfg?.task ?? "classification";
   const [pyModels, setPyModels] = useState<string[] | null>(null);
   useEffect(() => { void backendModels().then(setPyModels); }, []);
-  const engines = [...ENGINES, ...REMOTE_ENGINES.filter((e) => pyModels?.includes(e.id.slice(3)))].filter((e) => e.tasks.includes(task));
+  const engines = [...WORKER_ENGINES, ...REMOTE_ENGINES.filter((e) => pyModels?.includes(e.id.slice(3)))].filter((e) => e.tasks.includes(task));
   const [engineId, setEngineId] = useState(engines[0]?.id);
   const engine = engines.find((e) => e.id === engineId) ?? engines[0];
   const [paramState, setParamState] = useState<Record<string, Record<string, number>>>({});
@@ -106,6 +107,8 @@ export function TrainStep() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(last);
   useEffect(() => { latest.current = last; });
+  // leaving with a run in flight (new dataset): free its worker / TF.js memory
+  useEffect(() => () => latest.current?.predictor?.dispose?.(), []);
   const base = useMemo(() => (L?.ctx.task !== "clustering" && L ? L.ctx.Xtr[0].map((_, j) => mean(L.ctx.Xtr.map((r) => r[j]))) : []), [L]);
   const [redraw, setRedraw] = useState(0);
   useEffect(() => {
